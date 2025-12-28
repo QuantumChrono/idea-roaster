@@ -244,7 +244,7 @@ export function LoadingScreen({ idea, onCoinsCollected }: { idea: string; onCoin
         {showHint && (
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 animate-out fade-out duration-1000 delay-4000 pointer-events-none">
             <div className="text-green-400 text-xs font-mono px-2 py-1 border border-green-400 bg-black whitespace-nowrap">
-              use WASD to move and collect coins
+              {isMobile ? "use joystick to move and collect coins" : "use WASD to move and collect coins"}
             </div>
           </div>
         )}
