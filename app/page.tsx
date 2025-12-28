@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { LoadingScreen } from "@/components/loading-screen"
@@ -12,6 +12,10 @@ export default function Home() {
   const [aiResult, setAiResult] = useState("") // Store ONLY AI response here
   const [coinCount, setCoinCount] = useState(0)
   const coinCountRef = useRef(0)
+
+  useEffect(() => {
+    console.log("%c Built by Swayam | The Zero to One Roaster", "background: #22c55e; color: black; font-size: 12px; padding: 4px;");
+  }, []);
 
   // Extract coin comment from AI response (text before separator)
   const getCoinComment = (aiResponse: string) => {

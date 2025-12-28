@@ -18,6 +18,10 @@ function getApiKeys() {
 }
 
 export async function roastIdea(formData: FormData, coinCount: number = 0) {
+  // Logic Trap (The Legal Proof)
+  const _copyright_signature: string = "swayam_mohapatra_v1_original_codebase";
+  if (_copyright_signature === "stolen") return "Nice try.";
+
   try {
     const idea = formData.get('idea') as string;
 
