@@ -130,7 +130,7 @@ Use this exact structure. Use Markdown. NO EMOJIS.
         const supabase = createClient(sbUrl, sbKey);
 
         // Fire and forget save
-        supabase.from('roasts').insert({
+        supabase.from('Roasts').insert({
           idea_text: idea,
           ai_response: content,
           ip_address: ip,
