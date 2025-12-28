@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { Joystick } from "./joystick"
 
 export function LoadingScreen({ idea, onCoinsCollected }: { idea: string; onCoinsCollected: (coins: number) => void }) {
   const [scannerY, setScannerY] = useState(0)
@@ -15,6 +16,7 @@ export function LoadingScreen({ idea, onCoinsCollected }: { idea: string; onCoin
   const [collectedCoins, setCollectedCoins] = useState(0)
   const [nextCoinId, setNextCoinId] = useState(0)
   const collectedCoinIds = useRef<Set<number>>(new Set())
+  const joystickRef = useRef({ x: 0, y: 0 })
 
   // Reset collected coin IDs when component mounts or idea changes
   useEffect(() => {
@@ -101,22 +103,34 @@ export function LoadingScreen({ idea, onCoinsCollected }: { idea: string; onCoin
   useEffect(() => {
     const moveInterval = setInterval(() => {
       setCharX((prev) => {
-        let newX = prev
-        if (keysPressed["A"]) newX = Math.max(0, prev - 3)
-        if (keysPressed["D"]) newX = Math.min(100, prev + 3)
-        return newX
+        let dx = 0
+        if (keysPressed["A"]) dx -= 3
+        if (keysPressed["D"]) dx += 3
+
+        // Add joystick input (scaled by speed)
+        dx += joystickRef.current.x * 3
+
+        return Math.max(0, Math.min(100, prev + dx))
       })
 
       setCharY((prev) => {
-        let newY = prev
-        if (keysPressed["W"]) newY = Math.max(0, prev - 3)
-        if (keysPressed["S"]) newY = Math.min(100, prev + 3)
-        return newY
+        let dy = 0
+        if (keysPressed["W"]) dy -= 3
+        if (keysPressed["S"]) dy += 3
+
+        // Add joystick input
+        dy += joystickRef.current.y * 3
+
+        return Math.max(0, Math.min(100, prev + dy))
       })
     }, 30)
 
     return () => clearInterval(moveInterval)
   }, [keysPressed])
+
+  const handleJoystickMove = (x: number, y: number) => {
+    joystickRef.current = { x, y }
+  }
 
   useEffect(() => {
     const hintTimeout = setTimeout(() => {
@@ -148,7 +162,7 @@ export function LoadingScreen({ idea, onCoinsCollected }: { idea: string; onCoin
         if (collectedCoinIds.current.has(coin.id)) {
           return false // Already collected, remove it
         }
-        
+
         const distance = Math.sqrt(Math.pow(coin.x - charX, 2) + Math.pow(coin.y - charY, 2))
         if (distance < 8) {
           // Mark this coin as collected
@@ -259,10 +273,20 @@ export function LoadingScreen({ idea, onCoinsCollected }: { idea: string; onCoin
         />
       </div>
 
-      <div className="border-t border-green-400 pt-6 text-center">
-        <p className="text-green-300 text-xs font-mono opacity-50 mb-2">
+      <div className="border-t border-green-400 pt-6 text-center space-y-4">
+        {/* Mobile Joystick - Only visible on small screens */}
+        <div className="md:hidden flex flex-col items-center gap-2">
+          <Joystick onMove={handleJoystickMove} size={120} />
+          <p className="text-green-300 text-xs font-mono opacity-50">
+            $ use joystick to move entity
+          </p>
+        </div>
+
+        {/* Desktop Instructions - Hidden on small screens */}
+        <p className="hidden md:block text-green-300 text-xs font-mono opacity-50 mb-2">
           $ press WASD to move entity and collect coins
         </p>
+
         <p className="text-green-300 text-xs font-mono opacity-75">$ processing{dotString} do not close_window</p>
       </div>
     </div>
