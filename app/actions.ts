@@ -1,6 +1,8 @@
 'use server'
 
 import OpenAI from 'openai';
+import { createClient } from '@supabase/supabase-js';
+import { headers } from 'next/headers';
 
 
 // Initialize Groq client lazily (only when needed and API key exists)
@@ -18,6 +20,11 @@ function getGroqClient() {
 export async function roastIdea(formData: FormData, coinCount: number = 0) {
   try {
     const idea = formData.get('idea') as string;
+
+    // --- CAPTURE IP ADDRESS ---
+    const headersList = await headers();
+    const ip = headersList.get('x-forwarded-for') || 'unknown';
+    // --------------------------
 
     // Log to the terminal
     console.log("--- GROQ SERVER ACTION STARTED ---");
@@ -110,6 +117,24 @@ Use this exact structure. Use Markdown. NO EMOJIS.
     if (!content) {
       return "The AI was speechless. Your idea might be that bad, or that good.";
     }
+
+    // --- SAVE TO DATABASE WITH IP ---
+    if (idea.length > 10 && content) {
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
+
+      // Fire and forget save
+      supabase.from('roasts').insert({
+        idea_text: idea,
+        ai_response: content,
+        ip_address: ip,
+      }).then(({ error }) => {
+        if (error) console.error("DB Error:", error);
+      });
+    }
+    // -------------------------------
 
     return content;
 
