@@ -5,16 +5,16 @@ import { createClient } from '@supabase/supabase-js';
 import { headers } from 'next/headers';
 
 
-// Initialize Groq client lazily (only when needed and API key exists)
-function getGroqClient() {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) {
-    throw new Error("GROQ_API_KEY environment variable is not set");
+// Helper to get all available API keys
+function getApiKeys() {
+  const keys = [process.env.GROQ_API_KEY];
+  // Check for additional keys (GROQ_API_KEY_2, _3, etc.)
+  let i = 2;
+  while (process.env[`GROQ_API_KEY_${i}`]) {
+    keys.push(process.env[`GROQ_API_KEY_${i}`]);
+    i++;
   }
-  return new OpenAI({
-    apiKey: apiKey,
-    baseURL: "https://api.groq.com/openai/v1", // Groq's OpenAI-compatible endpoint
-  });
+  return keys.filter(k => !!k);
 }
 
 export async function roastIdea(formData: FormData, coinCount: number = 0) {
@@ -26,24 +26,15 @@ export async function roastIdea(formData: FormData, coinCount: number = 0) {
     const ip = headersList.get('x-forwarded-for') || 'unknown';
     // --------------------------
 
-    // Log to the terminal
-    console.log("--- GROQ SERVER ACTION STARTED ---");
-    console.log("Idea received:", idea);
-    console.log("Coin count:", coinCount);
-    console.log("API Key exists?", !!process.env.GROQ_API_KEY);
-
     if (!idea || !idea.trim()) {
       return "You didn't even type an idea. That's already a red flag.";
     }
 
-    // Check if API key exists before making the call
-    if (!process.env.GROQ_API_KEY) {
+    const apiKeys = getApiKeys();
+    if (apiKeys.length === 0) {
       console.error("--- MISSING GROQ API KEY ---");
       return "ERROR: Groq API key is not configured. Please set GROQ_API_KEY in your .env.local file.";
     }
-
-    // Initialize client only when we have the API key
-    const groq = getGroqClient();
 
     const SYSTEM_PROMPT = `
 ### ROLE & SECURITY PROTOCOL
@@ -100,18 +91,69 @@ Use this exact structure. Use Markdown. NO EMOJIS.
 [Generate 2-3 personalized FAQs based on the specific idea. Ask questions that are relevant to THIS startup idea, not generic ones. Examples: "Q: Can I compete with [specific competitor]?" or "Q: Is this a feature or a product?" or "Q: How do I acquire customers for [specific use case]?" Make the questions specific to the idea and the answers brutally honest.]
 `;
 
-    const completion = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile", // Fast and powerful Groq model
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: `Idea: ${idea}\n\nCoin Count Collected: ${coinCount} coins` },
-      ],
-      temperature: 0.9, // More creativity for entertaining roasts
-      max_tokens: 900, // Increased for structured format with coin comment and personalized FAQs
-    });
+    let completion;
+    let usedModel = "llama-3.3-70b-versatile";
 
-    console.log("Groq API replied successfully");
-    console.log("Coin count passed to AI:", coinCount);
+    // Attempt to use Llama 70b with key rotation
+    for (let i = 0; i < apiKeys.length; i++) {
+      const currentKey = apiKeys[i];
+      try {
+        console.log(`Attempting Llama 70b with Key #${i + 1}...`);
+        const groq = new OpenAI({
+          apiKey: currentKey,
+          baseURL: "https://api.groq.com/openai/v1",
+        });
+
+        completion = await groq.chat.completions.create({
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            { role: "user", content: `Idea: ${idea}\n\nCoin Count Collected: ${coinCount} coins` },
+          ],
+          temperature: 0.9,
+          max_tokens: 900,
+        });
+
+        // If successful, break the loop
+        if (completion) break;
+
+      } catch (error: any) {
+        console.warn(`Key #${i + 1} Failed: ${error?.status || error?.code}`);
+
+        // If it's the last key and it failed, DO NOT RETHROW YET - we will try fallback
+        if (i === apiKeys.length - 1) {
+          console.warn("All keys exhausted for Llama 70b.");
+        }
+      }
+    }
+
+    // Ultimate Fallback: Llama 8b Instant (Fast, Cheap, Lower Limits usually)
+    // We try this with the PRIMARY key (or standard rotation if we wanted, but let's just use the first valid one)
+    if (!completion) {
+      console.warn("--- CRITICAL: FALLING BACK TO LLAMA 8B INSTANT ---");
+      usedModel = "llama-3.1-8b-instant";
+
+      const groq = new OpenAI({
+        apiKey: apiKeys[0], // Try with the first key again for the tiny model
+        baseURL: "https://api.groq.com/openai/v1",
+      });
+
+      try {
+        completion = await groq.chat.completions.create({
+          model: "llama-3.1-8b-instant",
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            { role: "user", content: `Idea: ${idea}\n\nCoin Count Collected: ${coinCount} coins` },
+          ],
+          temperature: 0.9,
+          max_tokens: 900,
+        });
+      } catch (fallbackError: any) {
+        console.error("Fallback Failed:", fallbackError);
+        return "The AI is currently overwhelmed by the sheer mediocrity of the internet (Rate Limits). Please try again in a minute.";
+      }
+    }
+
     const content = completion.choices[0]?.message?.content;
 
     if (!content) {
@@ -122,9 +164,6 @@ Use this exact structure. Use Markdown. NO EMOJIS.
     if (idea.length > 10 && content) {
       const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const sbKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-      console.log("Supabase URL exists?", !!sbUrl);
-      console.log("Supabase Key exists?", !!sbKey);
 
       if (sbUrl && sbKey) {
         const supabase = createClient(sbUrl, sbKey);
@@ -150,25 +189,8 @@ Use this exact structure. Use Markdown. NO EMOJIS.
     return content;
 
   } catch (error: any) {
-    // Log the specific error and return a user-friendly message
-    console.error("--- GROQ API ERROR ---");
-    console.error("Error type:", error?.constructor?.name);
-    console.error("Error message:", error?.message);
-    console.error("Full error:", error);
-
-    // Return a more descriptive error message
-    const errorMessage = error?.message || "Unknown error";
-
-    if (errorMessage.includes("API key") || errorMessage.includes("authentication") || errorMessage.includes("credentials")) {
-      return "ERROR: Invalid or missing Groq API key. Please check your GROQ_API_KEY in .env.local and restart the server.";
-    }
-    if (errorMessage.includes("rate limit") || errorMessage.includes("quota")) {
-      return "ERROR: Rate limit exceeded. Groq has generous free limits, but you might have hit them. Try again in a moment.";
-    }
-    if (errorMessage.includes("model")) {
-      return "ERROR: Model not available. The Groq model might be temporarily unavailable.";
-    }
-
-    return `ERROR: ${errorMessage}. Check your terminal for more details.`;
+    // Top level catch for anything unexpected
+    console.error("Unhandled Error:", error);
+    return `ERROR: ${error.message || "Unknown system failure"}.`;
   }
 }
