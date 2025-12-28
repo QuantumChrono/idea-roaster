@@ -245,6 +245,14 @@ export function LoadingScreen({ idea, onCoinsCollected }: { idea: string; onCoin
         </div>
       </div>
 
+      {/* Mobile Joystick - Moved to middle */}
+      <div className="md:hidden flex flex-col items-center gap-2 py-4">
+        <Joystick onMove={handleJoystickMove} size={120} />
+        <p className="text-green-300 text-xs font-mono opacity-50">
+          $ use joystick to move entity
+        </p>
+      </div>
+
       {/* Your idea being processed */}
       <div className="border-2 border-green-400 bg-black p-6 font-mono text-sm space-y-2">
         <div className="text-green-500">{">> [PROCESSING_INPUT]"}</div>
@@ -274,13 +282,7 @@ export function LoadingScreen({ idea, onCoinsCollected }: { idea: string; onCoin
       </div>
 
       <div className="border-t border-green-400 pt-6 text-center space-y-4">
-        {/* Mobile Joystick - Only visible on small screens */}
-        <div className="md:hidden flex flex-col items-center gap-2">
-          <Joystick onMove={handleJoystickMove} size={120} />
-          <p className="text-green-300 text-xs font-mono opacity-50">
-            $ use joystick to move entity
-          </p>
-        </div>
+
 
         {/* Desktop Instructions - Hidden on small screens */}
         <p className="hidden md:block text-green-300 text-xs font-mono opacity-50 mb-2">
