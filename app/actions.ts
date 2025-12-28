@@ -129,14 +129,18 @@ Use this exact structure. Use Markdown. NO EMOJIS.
       if (sbUrl && sbKey) {
         const supabase = createClient(sbUrl, sbKey);
 
-        // Fire and forget save
-        supabase.from('Roasts').insert({
+        // AWAIT the save to ensure it completes before function exits
+        const { error } = await supabase.from('Roasts').insert({
           idea_text: idea,
           ai_response: content,
           ip_address: ip,
-        }).then(({ error }) => {
-          if (error) console.error("DB Error:", error);
         });
+
+        if (error) {
+          console.error("Supabase Write Error:", error);
+        } else {
+          console.log("Roast saved to DB successfully.");
+        }
       } else {
         console.error("CRITICAL: Supabase environment variables missing in action.");
       }
