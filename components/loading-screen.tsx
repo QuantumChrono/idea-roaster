@@ -187,6 +187,18 @@ export function LoadingScreen({ idea, onCoinsCollected }: { idea: string; onCoin
 
   const dotString = ".".repeat(dots)
 
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
   return (
     <div className="w-full max-w-2xl space-y-8 animate-in fade-in duration-300">
       {/* Terminal Header */}
@@ -246,12 +258,14 @@ export function LoadingScreen({ idea, onCoinsCollected }: { idea: string; onCoin
       </div>
 
       {/* Mobile Joystick - Moved to middle */}
-      <div className="md:hidden flex flex-col items-center gap-2 py-4">
-        <Joystick onMove={handleJoystickMove} size={120} />
-        <p className="text-green-300 text-xs font-mono opacity-50">
-          $ use joystick to move entity
-        </p>
-      </div>
+      {isMobile && (
+        <div className="flex flex-col items-center gap-2 py-4">
+          <Joystick onMove={handleJoystickMove} size={120} />
+          <p className="text-green-300 text-xs font-mono opacity-50">
+            $ use joystick to move entity
+          </p>
+        </div>
+      )}
 
       {/* Your idea being processed */}
       <div className="border-2 border-green-400 bg-black p-6 font-mono text-sm space-y-2">
@@ -285,9 +299,11 @@ export function LoadingScreen({ idea, onCoinsCollected }: { idea: string; onCoin
 
 
         {/* Desktop Instructions - Hidden on small screens */}
-        <p className="hidden md:block text-green-300 text-xs font-mono opacity-50 mb-2">
-          $ press WASD to move entity and collect coins
-        </p>
+        {!isMobile && (
+          <p className="text-green-300 text-xs font-mono opacity-50 mb-2">
+            $ press WASD to move entity and collect coins
+          </p>
+        )}
 
         <p className="text-green-300 text-xs font-mono opacity-75">$ processing{dotString} do not close_window</p>
       </div>
