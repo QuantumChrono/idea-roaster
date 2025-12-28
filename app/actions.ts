@@ -91,67 +91,62 @@ Use this exact structure. Use Markdown. NO EMOJIS.
 [Generate 2-3 personalized FAQs based on the specific idea. Ask questions that are relevant to THIS startup idea, not generic ones. Examples: "Q: Can I compete with [specific competitor]?" or "Q: Is this a feature or a product?" or "Q: How do I acquire customers for [specific use case]?" Make the questions specific to the idea and the answers brutally honest.]
 `;
 
+    const MODELS = [
+      "llama-3.3-70b-versatile",    // Primary: Best "Taste"
+      "qwen/qwen3-32b",             // Fallback 1: Strong reasoning (32B)
+      "openai/gpt-oss-120b",        // Fallback 2: Huge parameter count (120B)
+      "llama-3.1-8b-instant",       // Final Resort: Fast, reliable, high limits
+    ];
+
     let completion;
-    let usedModel = "llama-3.3-70b-versatile";
+    let usedModel = "";
 
-    // Attempt to use Llama 70b with key rotation
-    for (let i = 0; i < apiKeys.length; i++) {
-      const currentKey = apiKeys[i];
-      try {
-        console.log(`Attempting Llama 70b with Key #${i + 1}...`);
-        const groq = new OpenAI({
-          apiKey: currentKey,
-          baseURL: "https://api.groq.com/openai/v1",
-        });
+    // Double Loop: Iterate Keys -> Iterate Models
+    outerLoop:
+    for (const apiKey of apiKeys) {
+      const groq = new OpenAI({
+        apiKey: apiKey,
+        baseURL: "https://api.groq.com/openai/v1",
+      });
 
-        completion = await groq.chat.completions.create({
-          model: "llama-3.3-70b-versatile",
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            { role: "user", content: `Idea: ${idea}\n\nCoin Count Collected: ${coinCount} coins` },
-          ],
-          temperature: 0.9,
-          max_tokens: 900,
-        });
+      for (const model of MODELS) {
+        try {
+          console.log(`Attempting: ${model} (Key: ...${apiKey?.slice(-4)})`);
+          completion = await groq.chat.completions.create({
+            model: model,
+            messages: [
+              { role: "system", content: SYSTEM_PROMPT },
+              { role: "user", content: `Idea: ${idea}\n\nCoin Count Collected: ${coinCount} coins` },
+            ],
+            temperature: 0.9,
+            max_tokens: 900,
+          });
 
-        // If successful, break the loop
-        if (completion) break;
+          if (completion) {
+            usedModel = model;
+            console.log(`Success with model: ${model}`);
+            break outerLoop; // Success! Exit both loops
+          }
 
-      } catch (error: any) {
-        console.warn(`Key #${i + 1} Failed: ${error?.status || error?.code}`);
+        } catch (error: any) {
+          const isRateLimit = error.status === 429 || error.code === 'rate_limit_exceeded';
+          const isDecommissioned = error.status === 400 || error.code === 'model_decommissioned';
 
-        // If it's the last key and it failed, DO NOT RETHROW YET - we will try fallback
-        if (i === apiKeys.length - 1) {
-          console.warn("All keys exhausted for Llama 70b.");
+          if (isRateLimit || isDecommissioned) {
+            console.warn(`Failed ${model}: ${error?.code || error?.status} - Trying next...`);
+            continue; // Try next model in the list
+          } else {
+            // If it's a real error (like auth), log it but try next key if available
+            console.error(`Error with key ...${apiKey?.slice(-4)}:`, error.message);
+            break; // Break inner loop to try next key
+          }
         }
       }
     }
 
-    // Ultimate Fallback: Llama 8b Instant (Fast, Cheap, Lower Limits usually)
-    // We try this with the PRIMARY key (or standard rotation if we wanted, but let's just use the first valid one)
+    // Ultimate Failure Check
     if (!completion) {
-      console.warn("--- CRITICAL: FALLING BACK TO LLAMA 8B INSTANT ---");
-      usedModel = "llama-3.1-8b-instant";
-
-      const groq = new OpenAI({
-        apiKey: apiKeys[0], // Try with the first key again for the tiny model
-        baseURL: "https://api.groq.com/openai/v1",
-      });
-
-      try {
-        completion = await groq.chat.completions.create({
-          model: "llama-3.1-8b-instant",
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            { role: "user", content: `Idea: ${idea}\n\nCoin Count Collected: ${coinCount} coins` },
-          ],
-          temperature: 0.9,
-          max_tokens: 900,
-        });
-      } catch (fallbackError: any) {
-        console.error("Fallback Failed:", fallbackError);
-        return "The AI is currently overwhelmed by the sheer mediocrity of the internet (Rate Limits). Please try again in a minute.";
-      }
+      return "The AI is currently overwhelmed (Rate Limits on ALL models). Please try again in 60 seconds.";
     }
 
     const content = completion.choices[0]?.message?.content;
