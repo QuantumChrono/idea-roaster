@@ -120,19 +120,26 @@ Use this exact structure. Use Markdown. NO EMOJIS.
 
     // --- SAVE TO DATABASE WITH IP ---
     if (idea.length > 10 && content) {
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      );
+      const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const sbKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-      // Fire and forget save
-      supabase.from('roasts').insert({
-        idea_text: idea,
-        ai_response: content,
-        ip_address: ip,
-      }).then(({ error }) => {
-        if (error) console.error("DB Error:", error);
-      });
+      console.log("Supabase URL exists?", !!sbUrl);
+      console.log("Supabase Key exists?", !!sbKey);
+
+      if (sbUrl && sbKey) {
+        const supabase = createClient(sbUrl, sbKey);
+
+        // Fire and forget save
+        supabase.from('roasts').insert({
+          idea_text: idea,
+          ai_response: content,
+          ip_address: ip,
+        }).then(({ error }) => {
+          if (error) console.error("DB Error:", error);
+        });
+      } else {
+        console.error("CRITICAL: Supabase environment variables missing in action.");
+      }
     }
     // -------------------------------
 
