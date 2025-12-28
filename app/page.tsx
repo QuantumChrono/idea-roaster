@@ -208,9 +208,23 @@ export default function Home() {
               </Button>
               <Button
                 className="flex-1 h-12 text-base font-bold tracking-widest bg-blue-600 hover:bg-blue-500 text-white border-2 border-blue-400 font-mono active:scale-95 active:brightness-75 transition-all duration-75"
-                onClick={() => {
+                onClick={async () => {
                   const text = `My startup idea just got destroyed by AI. I scored ${coinCount} coins while crying. Try it:`
-                  window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent("https://idea-roaster.vercel.app")}`, '_blank')
+                  const url = "https://unicorpse.vercel.app"
+
+                  if (typeof navigator !== 'undefined' && navigator.share) {
+                    try {
+                      await navigator.share({
+                        title: 'Unicorpse - Will Your Startup Die?',
+                        text: text,
+                        url: url
+                      })
+                    } catch (err) {
+                      console.log('Error sharing:', err)
+                    }
+                  } else {
+                    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text + " " + url)}`, '_blank')
+                  }
                 }}
               >
                 &gt; Share Pain
