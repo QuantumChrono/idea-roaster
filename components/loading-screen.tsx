@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 
 export function LoadingScreen({ idea, onCoinsCollected }: { idea: string; onCoinsCollected: (coins: number) => void }) {
   const [scannerY, setScannerY] = useState(0)
@@ -14,6 +14,13 @@ export function LoadingScreen({ idea, onCoinsCollected }: { idea: string; onCoin
   const [coins, setCoins] = useState<Array<{ id: number; x: number; y: number }>>([])
   const [collectedCoins, setCollectedCoins] = useState(0)
   const [nextCoinId, setNextCoinId] = useState(0)
+  const collectedCoinIds = useRef<Set<number>>(new Set())
+
+  // Reset collected coin IDs when component mounts or idea changes
+  useEffect(() => {
+    collectedCoinIds.current.clear()
+    setCollectedCoins(0)
+  }, [idea])
 
   // Animate scanner line
   useEffect(() => {
@@ -135,23 +142,33 @@ export function LoadingScreen({ idea, onCoinsCollected }: { idea: string; onCoin
 
   useEffect(() => {
     setCoins((prevCoins) => {
+      let coinsToCollect = 0
       const remaining = prevCoins.filter((coin) => {
+        // Skip if this coin was already collected
+        if (collectedCoinIds.current.has(coin.id)) {
+          return false // Already collected, remove it
+        }
+        
         const distance = Math.sqrt(Math.pow(coin.x - charX, 2) + Math.pow(coin.y - charY, 2))
         if (distance < 8) {
-          setCollectedCoins((prev) => prev + 1)
-          return false
+          // Mark this coin as collected
+          collectedCoinIds.current.add(coin.id)
+          coinsToCollect++
+          return false // Remove the coin
         }
-        return true
+        return true // Keep the coin
       })
+      // Only increment once for all NEW coins collected in this frame
+      if (coinsToCollect > 0) {
+        setCollectedCoins((prev) => prev + coinsToCollect)
+      }
       return remaining
     })
   }, [charX, charY])
 
+  // Notify parent whenever collectedCoins changes (no timeout - parent controls when to finish)
   useEffect(() => {
-    const completeTimeout = setTimeout(() => {
-      onCoinsCollected(collectedCoins)
-    }, 3000)
-    return () => clearTimeout(completeTimeout)
+    onCoinsCollected(collectedCoins)
   }, [collectedCoins, onCoinsCollected])
 
   const dotString = ".".repeat(dots)
